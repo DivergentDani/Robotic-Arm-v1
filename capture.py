@@ -1,25 +1,59 @@
 import cv2
+import time
 import mediapipe as mp
-import mediapipe.tasks.python as tasks
-import mediapipe.tasks.python.vision as handStuff
+from mediapipe.tasks import python
+from mediapipe.tasks.python import vision
 
-#select hand solution
-handSource = mp.solutions.hands
-hands = handSource.Hands()
+base_options = python.BaseOptions(model_asset_path = "hand_landmarker.task")
+#configure hand landmarker, options for running mode are image, video and live stream, num_hands set to 1 for now
 
+options = vision.HandLandmarkerOptions(
+    base_options = base_options, 
+    running_mode = vision.RunningMode.VIDEO, 
+    num_hands = 1
+)
+
+#create landmarker for hands
+landmarker = vision.HandLandmarker.create_from_options(options)
+
+##create window
+cv2.namedWindow("Hand tracking", cv2.WINDOW_NORMAL)
 #open camera -- 0 is default
-videoCap = cv2.VideoCapture(0)
+videoCap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+for _ in range(10):
+    videoCap.read()
 #read image
-success, img = videoCap.read()
-#show image on separate window
-if success: 
-    #recognize hands from image
-    recognizeHands = hands.process(img)
-    if recognizeHands.multi_hand_landmarks: 
-        #draw the dots on each image
-        for datapoint, point in enumerate(hand.landmark): 
-            h, w, c = img.shape
-            x, y = int(point.x * w), int(point.y * h)
-            cv2.circle(img, (x,y), 10, (255, 0, 255), cv2.FILLED)
-            cv2.imshow("CamOutput", img)
-            cv2.waitKey(1)
+while True: 
+    ##flip the image horizontally, convert the colors to RGB and wrap it for MediaPipe
+    success, img = videoCap.read()
+    if not success: 
+        break
+    img = cv2.flip(img, 1)
+
+    rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) #converts and saves color as rgb format
+    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data= rgb)
+    #timestamp to keep frame
+    timestamp_ms = int(time.time() * 1000)
+
+    ##frames for detecting vision (hand)
+    result = landmarker.detect_for_video(mp_image, timestamp_ms)
+
+    ##make landmarks points
+    if result.hand_landmarks: 
+        hand = result.hand_landmarks[0]
+        h, w, _ = img.shape
+
+        points = []
+        for landmark in hand: 
+            x = int(landmark.x * w)
+            y = int(landmark.y * h)
+            points.append((x,y))
+
+    ##draw the point on hand - image, (x,y), radius of circle, color, thickness
+        for point in points:
+            cv2.circle(img, point, 5, (0,0, 255), -1)
+    cv2.imshow("Hand tracking", img)
+    if cv2.waitKey(1) & 0xFF == ord("q"):
+        break
+videoCap.release()
+cv2.destroyAllWindows()
