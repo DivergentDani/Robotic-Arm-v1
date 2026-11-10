@@ -38,6 +38,22 @@ while True:
     ##frames for detecting vision (hand)
     result = landmarker.detect_for_video(mp_image, timestamp_ms)
 
+      ##line connections for hand
+    lines = [
+                    #thumb
+                    (0, 1), (1, 2), (2, 3), (3, 4),
+                    #index
+                    (0, 5), (5, 6), (6, 7), (7, 8),
+                    #middle
+                    (9, 10), (10, 11), (11, 12), 
+                    #ring
+                    (13, 14), (14, 15), (15, 16), 
+                    #pinky
+                    (17, 18), (18, 19), (19, 20), 
+                    #palm
+                    (5, 9), (9, 13), (13, 17)
+                 ]
+
     ##make landmarks points
     if result.hand_landmarks: 
         hand = result.hand_landmarks[0]
@@ -48,11 +64,14 @@ while True:
             x = int(landmark.x * w)
             y = int(landmark.y * h)
             points.append((x,y))
-
     ##draw the point on hand - image, (x,y), radius of circle, color, thickness
-        for point in points:
+    for point in points:
             cv2.circle(img, point, 5, (0,0, 255), -1)
+    for start, end in lines:
+         cv2.line(img, points[start], points[end], (0, 255, 0), 1)
     cv2.imshow("Hand tracking", img)
+
+    ## to keep window running until q is pressed
     if cv2.waitKey(1) & 0xFF == ord("q"):
         break
 videoCap.release()
