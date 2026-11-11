@@ -1,8 +1,11 @@
 import cv2
 import time
+import math
+import numpy as np
 import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
+from pycaw.pycaw import AudioUtilities
 
 base_options = python.BaseOptions(model_asset_path = "hand_landmarker.task")
 #configure hand landmarker, options for running mode are image, video and live stream, num_hands set to 1 for now
@@ -22,6 +25,13 @@ cv2.namedWindow("Hand tracking", cv2.WINDOW_NORMAL)
 videoCap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
 for _ in range(10):
     videoCap.read()
+
+##get default speakers
+device = AudioUtilities.GetSpeakers()
+volume = device.EndpointVolume
+
+#volume range
+vol_range = volume.GetVolumeRange()
 #read image
 while True: 
     ##flip the image horizontally, convert the colors to RGB and wrap it for MediaPipe
@@ -51,7 +61,7 @@ while True:
                     #pinky
                     (17, 18), (18, 19), (19, 20), 
                     #palm
-                    (5, 9), (9, 13), (13, 17)
+                    (5, 9), (9, 13), (13, 17), (0, 17)
                  ]
 
     ##make landmarks points
@@ -64,11 +74,35 @@ while True:
             x = int(landmark.x * w)
             y = int(landmark.y * h)
             points.append((x,y))
-    ##draw the point on hand - image, (x,y), radius of circle, color, thickness
-    for point in points:
+
+        ##thumb tip 
+        x1, y1 = points[4]
+
+        ##index tip
+        x2, y2 = points[8]
+
+        ##center point
+        cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
+
+        ##calculate distance between fingers
+        distance = math.hypot(x2 - x1, y2 - y1)
+
+        ##volume percentage
+        vol = np.interp(distance, [30, 220], [0,1])
+        ##volume bar
+        vol_bar = np.interp(distance, [30, 220], [0, 100])
+        ##draw volume bar
+        cv2.rectangle(img, (50, 150), (85, 400), (0, 255, 0), 3)
+
+        cv2.rectangle(img, (50, int(vol_bar)), (85, 400), (0, 255, 0), cv2.FILLED)
+
+        ##set system volume
+        volume.SetMasterVolumeLevelScalar(vol, None)
+        for start, end in lines:
+          cv2.line(img, points[start], points[end], (0, 255, 0), 1)
+        ##draw the point on hand - image, (x,y), radius of circle, color, thickness
+        for point in points:
             cv2.circle(img, point, 5, (0,0, 255), -1)
-    for start, end in lines:
-         cv2.line(img, points[start], points[end], (0, 255, 0), 1)
     cv2.imshow("Hand tracking", img)
 
     ## to keep window running until q is pressed
